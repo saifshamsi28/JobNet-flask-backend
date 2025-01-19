@@ -12,6 +12,7 @@ import math
 
 def create_webdriver():
     options = webdriver.ChromeOptions()
+    options.add_argument('--headless')  # Run headless if needed
     driver_path = ChromeDriverManager().install()
     service = Service(driver_path)
     return webdriver.Chrome(service=service, options=options)
@@ -131,6 +132,7 @@ def extract_jobs_from_page(job_title, site='indeed', page=1):
 def scrape_full_job_description(url):
     try:
         # driver = create_webdriver()
+
         driver.get(url)
         time.sleep(2)  # Adjust as necessary
         soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -141,7 +143,7 @@ def scrape_full_job_description(url):
 
     print(f"fetching full details from: {url}")
 
-    if ("indeed.com" in url):
+    if "indeed.com" in url:
         # Extract job ID
         job_id_tag = soup.find("meta", {"property": "indeed:jobKey"})
         job_id = job_id_tag["content"] if job_id_tag else "N/A"
@@ -339,7 +341,7 @@ def search_jobs():
         return jsonify(jobs)
 
 
-@app.route('/getJobDescription', methods=['GET'])
+@app.route('/url', methods=['GET'])
 def get_job_description():
     job_url = request.args.get("job_url")
     try:
@@ -347,8 +349,8 @@ def get_job_description():
         job = scrape_full_job_description(job_url)
         return jsonify(job)
     except Exception as e:
+        print(f"Error fetching job description: {str(e)}")
         # If the driver session is closed, reinitialize it
-        print("Reinitializing driver...")
         global driver
         driver.quit()
         driver = create_webdriver()
@@ -356,6 +358,6 @@ def get_job_description():
         return jsonify(job)
 
 
-print(fetch_jobs("Data Scientist", "Search bar"))
+# print(fetch_jobs("Android Developer", "Search bar"))
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
