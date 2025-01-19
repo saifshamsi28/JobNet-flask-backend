@@ -1,5 +1,5 @@
 import random
-
+import re
 from flask import Flask, jsonify, request
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -12,7 +12,6 @@ import math
 
 def create_webdriver():
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless')  # Run headless if needed
     driver_path = ChromeDriverManager().install()
     service = Service(driver_path)
     return webdriver.Chrome(service=service, options=options)
@@ -128,186 +127,140 @@ def extract_jobs_from_page(job_title, site='indeed', page=1):
                 "link": follow_link_from_naukri
             })
 
-
+# Function to scrape full job description
 def scrape_full_job_description(url):
+    driver = None
     try:
-        # driver = create_webdriver()
-
+        driver = create_webdriver()
         driver.get(url)
-        time.sleep(2)  # Adjust as necessary
+        time.sleep(3)  # Allow page to load
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        # Extract and return job details here
-    except Exception as e:
-        print("Error while accessing WebDriver:", e)
-        raise e
 
-    print(f"fetching full details from: {url}")
+        print(f"Fetching full details from: {url}")
 
-    if "indeed.com" in url:
-        # Extract job ID
-        job_id_tag = soup.find("meta", {"property": "indeed:jobKey"})
-        job_id = job_id_tag["content"] if job_id_tag else "N/A"
+        if "indeed.com" in url:
+            # Indeed job details extraction
+            job_id_tag = soup.find("meta", {"property": "indeed:jobKey"})
+            job_id = job_id_tag["content"] if job_id_tag else "N/A"
 
-        # Extract job title
-        title_tag = soup.find("h1", class_="jobsearch-JobInfoHeader-title")
-        title = title_tag.get_text(strip=True) if title_tag else "N/A"
+            title_tag = soup.find("h1", class_="jobsearch-JobInfoHeader-title")
+            title = title_tag.get_text(strip=True) if title_tag else "N/A"
 
-        # Extract company name
-        company_tag = soup.find("div", {"data-company-name": "true"})
-        company = company_tag.get_text(strip=True) if company_tag else "N/A"
+            company_tag = soup.find("div", {"data-company-name": "true"})
+            company = company_tag.get_text(strip=True) if company_tag else "N/A"
 
-        # Extract job location
-        location_tag = soup.find("div", {"data-testid": "inlineHeader-companyLocation"})
-        location = location_tag.get_text(strip=True) if location_tag else "N/A"
+            location_tag = soup.find("div", {"data-testid": "inlineHeader-companyLocation"})
+            location = location_tag.get_text(strip=True) if location_tag else "N/A"
 
-        # Extract post date
-        post_date_tag = soup.find("span", class_="jobsearch-HiringInsights-entry--bullet")
-        post_date = post_date_tag.get_text(strip=True) if post_date_tag else "N/A"
+            post_date_tag = soup.find("span", class_="jobsearch-HiringInsights-entry--bullet")
+            post_date = post_date_tag.get_text(strip=True) if post_date_tag else "N/A"
 
-        # Extract salary information
-        salary_tag = soup.find("div", {"data-testid": "jobsearch-OtherJobDetailsContainer"})
-        if salary_tag:
-            salary_span = salary_tag.find("span", class_="css-19j1a75 eu4oa1w0")
-            salary = salary_span.get_text(strip=True) if salary_span else "N/A"
-        else:
-            salary = "N/A"
+            salary_tag = soup.find("div", {"data-testid": "jobsearch-OtherJobDetailsContainer"})
+            salary = salary_tag.find("span", class_="css-19j1a75 eu4oa1w0").get_text(strip=True) if salary_tag else "N/A"
 
-        # Extract rating
-        rating_tag = soup.find("div", class_="css-1unnuiz e37uo190")
-        rating = rating_tag.get_text(strip=True) if rating_tag else "N/A"
+            rating_tag = soup.find("div", class_="css-1unnuiz e37uo190")
+            rating = rating_tag.get_text(strip=True) if rating_tag else "N/A"
 
-        job_details = {
-            "job_id": job_id,
-            "title": title,
-            "company": company,
-            "location": location,
-            "post_date": post_date,
-            "salary": salary,
-            "rating": rating,
-            "reviews": "N/A",
-            "openings": "N/A",
-            "applicants": "N/A",
-            "description": rating,
-            "link": url
-        }
-        # Extract job description
-        # Extract and format job description
-        description_tag = soup.find("div", class_="jobsearch-JobComponent-description")
-        if description_tag:
-            job_description = description_tag.get_text(separator="\n").strip()
-            # Split description into lines and add markers for headings and bullets
-            formatted_description = []
-            is_full_heading = 0
-            for line in job_description.split('\n'):
-                line = line.strip()
-                if line == "Full job description":
-                    is_full_heading = 1
-
-                if is_full_heading == 0:
-                    continue
-
-                if ":" in line and len(line) < 25:  # Likely a heading
-                    formatted_description.append("[HEADING]" + line)
-                elif line:  # Regular content or bullet point
-                    if len(line) > 2:
+            description_tag = soup.find("div", class_="jobsearch-JobComponent-description")
+            if description_tag:
+                job_description = description_tag.get_text(separator="\n").strip()
+                formatted_description = []
+                for line in job_description.split('\n'):
+                    line = line.strip()
+                    if ":" in line and len(line) < 25:
+                        formatted_description.append("[HEADING]" + line)
+                    elif line:
                         formatted_description.append("[BULLET]" + line)
-            job_details['description'] = "\n".join(formatted_description)
+                description = "\n".join(formatted_description)
+            else:
+                description = "N/A"
+
+            job_details = {
+                "job_id": job_id,
+                "title": title,
+                "company": company,
+                "location": location,
+                "post_date": post_date,
+                "salary": salary,
+                "rating": rating,
+                "description": description,
+                "link": url
+            }
+
+        elif "naukri.com" in url:
+            # Naukri job details extraction
+            title_tag = soup.find("h1", class_="styles_jd-header-title__rZwM1")
+            title = title_tag.text.strip() if title_tag else "N/A"
+
+            company_tag = soup.find("div", class_="styles_jd-header-comp-name__MvqAI").find("a")
+            company = company_tag.text.strip() if company_tag else "N/A"
+
+            rating_tag = soup.find("span", class_="styles_amb-rating__4UyFL")
+            rating = rating_tag.text.strip() if rating_tag else "N/A"
+            reviews_tag = soup.find("span", class_="styles_amb-reviews__0J1e3")
+            reviews = reviews_tag.text.strip() if reviews_tag else "N/A"
+
+            experience_tag = soup.find("div", class_="styles_jhc__exp__k_giM")
+            experience = experience_tag.text.strip() if experience_tag else "N/A"
+
+            salary_tag = soup.find("div", class_="styles_jhc__salary__jdfEC")
+            salary = salary_tag.text.strip() if salary_tag else "N/A"
+
+            location_tag = soup.find("span", class_="styles_jhc__location__W_pVs").find("a")
+            location = location_tag.text.strip() if location_tag else "N/A"
+
+            stats_container = soup.find("div", class_="styles_jhc__jd-stats__KrId0")
+            posted_date, openings, applicants = "N/A", "N/A", "N/A"
+            if stats_container:
+                stats_spans = stats_container.find_all("span", class_="styles_jhc__stat__PgY67")
+                for stat in stats_spans:
+                    label = stat.find("label").text.strip() if stat.find("label") else ""
+                    if label == "Posted:":
+                        posted_date = stat.find_next("span").text.strip()
+                    elif label == "Openings:":
+                        openings = stat.find_next("span").text.strip()
+                    elif label == "Applicants:":
+                        applicants = stat.find_next("span").text.strip()
+
+            description_tag = soup.find("div", class_="styles_JDC__dang-inner-html__h0K4t")
+            description = description_tag.get_text(separator="\n").strip() if description_tag else "N/A"
+            print(description)
+            description = re.sub(r'\n +', '\n', description)
+
+            skills_tags = soup.find_all("a", class_="styles_chip__7YCfG")
+            key_skills = "\n".join([f"• {skill.text.strip()}" for skill in skills_tags])
+
+            formatted_text = f"{description}\n\nKey Skills:\n{key_skills}"
+
+            job_details = {
+                "job_id": "N/A",
+                "title": title,
+                "company": company,
+                "location": location,
+                "post_date": posted_date,
+                "salary": salary,
+                "rating": rating,
+                "reviews": reviews,
+                "openings": openings,
+                "applicants": applicants,
+                "description": formatted_text,
+                "link": url
+            }
+
         else:
-            job_details['description'] = "N/A"
+            raise ValueError("Unsupported job URL")
 
-        # Construct link to job
-        link = url
-
-        # Store extracted details in a dictionary
-
-        print(job_details['description'])
-        print(job_details['title'])
-        return job_details
-    elif "naukri.com" in url:
-        # Extracting job title
-        title_tag = soup.find("h1", class_="styles_jd-header-title__rZwM1")
-        title = title_tag.text.strip() if title_tag else None
-
-        # Extracting company name
-        company_tag = soup.find("div", class_="styles_jd-header-comp-name__MvqAI").find("a")
-        company = company_tag.text.strip() if company_tag else None
-
-        # Extracting rating and number of reviews
-        rating_tag = soup.find("span", class_="styles_amb-rating__4UyFL")
-        rating = rating_tag.text.strip() if rating_tag else "N/A"
-        reviews_tag = soup.find("span", class_="styles_amb-reviews__0J1e3")
-        reviews = reviews_tag.text.strip() if reviews_tag else "N/A"
-
-        # Extracting experience
-        experience_tag = soup.find("div", class_="styles_jhc__exp__k_giM")
-        experience = experience_tag.text.strip() if experience_tag else "N/A"
-
-        # Extracting salary
-        salary_tag = soup.find("div", class_="styles_jhc__salary__jdfEC")
-        salary = salary_tag.text.strip() if salary_tag else "N/A"
-
-        # Extracting location
-        location_tag = soup.find("span", class_="styles_jhc__location__W_pVs").find("a")
-        location = location_tag.text.strip() if location_tag else "N/A"
-
-        # Extracting posted date, openings, and applicants
-        # Locate the container for job statistics first
-        stats_container = soup.find("div", class_="styles_jhc__jd-stats__KrId0")
-
-        # Initialize values to None in case any elements are missing
-        posted_date, openings, applicants = None, None, None
-
-        if stats_container:
-            # Find all stats spans within the container
-            stats_spans = stats_container.find_all("span", class_="styles_jhc__stat__PgY67")
-
-            for stat in stats_spans:
-                label = stat.find("label").text.strip() if stat.find("label") else ""
-
-                if label == "Posted:":
-                    posted_date = stat.find_next("span").text.strip()
-                elif label == "Openings:":
-                    openings = stat.find_next("span").text.strip()
-                elif label == "Applicants:":
-                    applicants = stat.find_next("span").text.strip()
-
-        # print("Posted Date:", posted_date)
-        # print("Openings:", openings)
-        # print("Applicants:", applicants)
-
-        import re
-
-        # Extracting job description with line breaks for formatting
-        description_tag = soup.find("div", class_="styles_JDC__dang-inner-html__h0K4t")
-        description = description_tag.get_text(separator="\n").strip() if description_tag else None
-
-        # Replace multiple \n with a single \n in the description
-        description = re.sub(r'\n +', '\n', description) if description else ""
-
-        # Extracting key skills and formatting them as a list with new lines
-        skills_tags = soup.find_all("a", class_="styles_chip__7YCfG")
-        key_skills = "\n".join([f"• {skill.text.strip()}" for skill in skills_tags])
-
-        # Combine description and key skills with a header for key skills
-        formatted_text = f"{description}\n\nKey Skills:\n{key_skills}"
-
-        # Print or return extracted details
-        job_details = {
-            "job_id": "job_id",
-            "title": title,
-            "company": company,
-            "location": location,
-            "post_date": posted_date,
-            "salary": salary,
-            "rating": rating,
-            "reviews": reviews,
-            "openings": openings,
-            "applicants": applicants,
-            "description": formatted_text,
-            "link": url
-        }
 
         return job_details
+
+    except Exception as e:
+        print(f"Error while accessing WebDriver or scraping: {e}")
+        return None
+
+    finally:
+        if driver:
+            driver.quit()
+
 
 
 @app.route('/home', methods=['GET'])
@@ -357,6 +310,10 @@ def get_job_description():
         job = scrape_full_job_description(job_url)
         return jsonify(job)
 
+
+job_url = "https://www.naukri.com/job-listings-android-developer-amazin-automation-solutions-india-gurugram-4-to-7-years-180125003854"
+job_details = scrape_full_job_description(job_url)
+print(job_details)
 
 # print(fetch_jobs("Android Developer", "Search bar"))
 if __name__ == '__main__':
