@@ -1,21 +1,50 @@
-import random
 import re
 from flask import Flask, jsonify, request
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 from flask_cors import CORS
 import time
 from webdriver_manager.chrome import ChromeDriverManager
-import math
 
 
 def create_webdriver():
-    options = webdriver.ChromeOptions()
+    options = Options()
+    # Enable headless mode for non-UI environments
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')  # Disable sandbox (required for environments like Render)
+    options.add_argument('--disable-dev-shm-usage')  # Reduce memory usage issues
+    options.add_argument('--disable-blink-features=AutomationControlled')  # Prevent detection of headless browser
+    options.add_argument('--disable-extensions')  # Disable extensions for better compatibility
+    options.add_argument('--disable-gpu')  # Disable GPU rendering for better performance in headless mode
+    options.add_argument('--window-size=1920x1080')  # Set a standard screen size
+
+    # Set a custom user agent to mimic a real browser
+    options.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.5481.78 Safari/537.36"
+    )
+
+    # Disable automation flags to avoid detection as a bot
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
+
+    # Install ChromeDriver and create the WebDriver instance
     driver_path = ChromeDriverManager().install()
     service = Service(driver_path)
-    return webdriver.Chrome(service=service, options=options)
+    driver = webdriver.Chrome(service=service, options=options)
 
+    # Additional settings to prevent detection
+    driver.execute_cdp_cmd(
+        "Page.addScriptToEvaluateOnNewDocument",
+        {
+            "source": """
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            """
+        },
+    )
+
+    return driver
 
 driver = create_webdriver()
 
@@ -48,9 +77,9 @@ def extract_jobs_from_page(job_title, site='indeed', page=1):
 
     print(f"Fetching from {site} - Page {page}: {base_url}")
     driver.get(base_url)
-    time.sleep(2)
+    time.sleep(3)
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    time.sleep(2)
+    time.sleep(3)
 
     soup = BeautifulSoup(driver.page_source, "html.parser")
 
@@ -127,13 +156,14 @@ def extract_jobs_from_page(job_title, site='indeed', page=1):
                 "link": follow_link_from_naukri
             })
 
+
 # Function to scrape full job description
 def scrape_full_job_description(url):
     driver = None
     try:
         driver = create_webdriver()
         driver.get(url)
-        time.sleep(3)  # Allow page to load
+        time.sleep(2)  # Allow page to load
         soup = BeautifulSoup(driver.page_source, 'html.parser')
 
         print(f"Fetching full details from: {url}")
@@ -224,7 +254,7 @@ def scrape_full_job_description(url):
 
             description_tag = soup.find("div", class_="styles_JDC__dang-inner-html__h0K4t")
             description = description_tag.get_text(separator="\n").strip() if description_tag else "N/A"
-            print(description)
+            # print(description)
             description = re.sub(r'\n +', '\n', description)
 
             skills_tags = soup.find_all("a", class_="styles_chip__7YCfG")
@@ -296,14 +326,16 @@ def search_jobs():
 
 @app.route('/url', methods=['GET'])
 def get_job_description():
-    job_url = request.args.get("job_url")
+    job_url = request.args.get("url")
     try:
+        # Decode the URL to ensure it's in the correct format
+        job_url = job_url.strip()  # Remove any trailing newlines or spaces
         print(f"Url received: {job_url}")
+
         job = scrape_full_job_description(job_url)
         return jsonify(job)
     except Exception as e:
         print(f"Error fetching job description: {str(e)}")
-        # If the driver session is closed, reinitialize it
         global driver
         driver.quit()
         driver = create_webdriver()
@@ -311,10 +343,10 @@ def get_job_description():
         return jsonify(job)
 
 
-job_url = "https://www.naukri.com/job-listings-android-developer-amazin-automation-solutions-india-gurugram-4-to-7-years-180125003854"
+job_url = "https://www.naukri.com/job-listings-backend-developer-fusion-plus-solutions-inc-hyderabad-1-to-4-years-100125500866"
 job_details = scrape_full_job_description(job_url)
 print(job_details)
 
-# print(fetch_jobs("Android Developer", "Search bar"))
+# print(fetch_jobs("android developer", "Search bar"))
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
