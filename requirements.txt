@@ -34,3 +34,5 @@ urllib3==2.2.3
 websocket-client==1.8.0
 Werkzeug==3.0.6
 wsproto==1.2.0
+gunicorn==21.2.0
+
