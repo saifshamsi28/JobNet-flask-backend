@@ -307,8 +307,8 @@ def show_jobs():
         jobs = fetch_jobs(job_title)
         return jsonify(jobs)
     finally:
-        global driver
-        driver.quit()
+        if driver is not None:
+            driver.quit()
 
 
 @app.route('/jobs', methods=['GET'])
@@ -326,8 +326,8 @@ def search_jobs():
         jobs = fetch_jobs(job_title)
         return jsonify(jobs)
     finally:
-        global driver
-        driver.quit()
+        if driver is not None:
+            driver.quit()
 
 
 @app.route('/url', methods=['GET'])
@@ -348,11 +348,11 @@ def get_job_description():
         job = scrape_full_job_description(job_url)
         return jsonify(job)
     finally:
-        global driver
-        driver.quit()
+        if driver is not None:
+            driver.quit()
 
 
-# job_url = "https://www.naukri.com/job-listings-java-developer-zensar-technologies-kolkata-mumbai-new-delhi-hyderabad-pune-chennai-bengaluru-1-to-4-years-200125502839"
+        # job_url = "https://www.naukri.com/job-listings-java-developer-zensar-technologies-kolkata-mumbai-new-delhi-hyderabad-pune-chennai-bengaluru-1-to-4-years-200125502839"
 # job_details = scrape_full_job_description(job_url)
 # print(job_details)
 
