@@ -343,7 +343,7 @@ def get_job_description():
         return jsonify(job)
 
 
-job_url = "https://www.naukri.com/job-listings-backend-developer-fusion-plus-solutions-inc-hyderabad-1-to-4-years-100125500866"
+job_url = "https://www.naukri.com/job-listings-java-developer-zensar-technologies-kolkata-mumbai-new-delhi-hyderabad-pune-chennai-bengaluru-1-to-4-years-200125502839"
 job_details = scrape_full_job_description(job_url)
 print(job_details)
 
