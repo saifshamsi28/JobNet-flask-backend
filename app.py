@@ -336,22 +336,24 @@ def search_jobs():
 def get_job_description():
     job_url = request.args.get("url")
     try:
-        # Decode the URL to ensure it's in the correct format
         job_url = job_url.strip()  # Remove any trailing newlines or spaces
         print(f"Url received: {job_url}")
 
         job = scrape_full_job_description(job_url)
-        return jsonify(job)
+        if job:
+            return jsonify(job), 200  # Return success with job details
+        else:
+            return jsonify({"error": "Failed to fetch job details"}), 500  # Indicate failure to fetch job details
     except Exception as e:
         print(f"Error fetching job description: {str(e)}")
         global driver
         driver.quit()
         driver = create_webdriver()
-        job = scrape_full_job_description(job_url)
-        return jsonify(job)
+        return jsonify({"error": "An error occurred while processing the request"}), 500
     finally:
         if driver is not None:
             driver.quit()
+
 
 
         # job_url = "https://www.naukri.com/job-listings-java-developer-zensar-technologies-kolkata-mumbai-new-delhi-hyderabad-pune-chennai-bengaluru-1-to-4-years-200125502839"
