@@ -57,12 +57,14 @@ jobs = []
 def fetch_jobs(job_title, source="home"):
     global jobs
     jobs = []
+
     # to decide from how much page jobs will be fetched
-    for page in range(1, 2):
-        # To fetch jobs from Indeed
+    for page in range(1, 3):
+        # Fetch jobs from Naukri
         extract_jobs_from_page(job_title, site='naukri', page=page)
-        if source == "search bar":
-            # To fetch jobs from Naukri
+
+        # Fetch jobs from Indeed if the source is "search bar"
+        if source == "search bar" or source == "home":
             extract_jobs_from_page(job_title, site='indeed', page=page)
 
     return jobs
@@ -71,7 +73,7 @@ def fetch_jobs(job_title, source="home"):
 def extract_jobs_from_page(job_title, site='indeed', page=1):
     base_url = ""
     if site == 'indeed':
-        base_url = f"https://in.indeed.com/jobs?q={job_title}&start={(page - 1) * 10}"
+        base_url = f"https://in.indeed.com/jobs?q={job_title}&start={(page - 1) * 3}"
     elif site == 'naukri':
         base_url = f"https://www.naukri.com/{job_title}-jobs-{page}"
 
@@ -87,7 +89,7 @@ def extract_jobs_from_page(job_title, site='indeed', page=1):
         job_listings = soup.find_all("div", class_="job_seen_beacon")
 
         for job in job_listings:
-            job_id = job.find("a", class_="jcs-JobTitle")["data-jk"] if job.find("a", class_="jcs-JobTitle") else "N/A"
+            id = job.find("a", class_="jcs-JobTitle")["data-jk"] if job.find("a", class_="jcs-JobTitle") else "N/A"
             title_tag = job.find("h2", class_="jobTitle")
             title = title_tag.get_text(strip=True) if title_tag else "N/A"
             follow_link_from_indeed = title_tag.find("a")["href"] if title_tag and title_tag.find("a") else "N/A"
@@ -105,7 +107,7 @@ def extract_jobs_from_page(job_title, site='indeed', page=1):
             description_from_indeed = description_list.get_text(strip=True) if description_list else "N/A"
 
             jobs.append({
-                "job_id": job_id,
+                "id": id,
                 "title": title,
                 "company": company,
                 "location": location,
@@ -121,30 +123,26 @@ def extract_jobs_from_page(job_title, site='indeed', page=1):
         job_listings = soup.find_all("div", class_="srp-jobtuple-wrapper")
 
         for job in job_listings:
-            job_id = job["data-job-id"] if "data-job-id" in job.attrs else "N/A"
+            # Extract job ID from the URL if not found directly in attributes
+            follow_link_from_naukri = job.find("a", class_="title")["href"] if job.find("a", class_="title") else "N/A"
+            id = job.get("data-job-id", None) or (follow_link_from_naukri.split("-")[-1] if follow_link_from_naukri != "N/A" else "N/A")
+
+            # The rest of the job parsing remains the same
             title_tag = job.find("a", class_="title")
             title = title_tag.get_text(strip=True) if title_tag else "N/A"
-            follow_link_from_naukri = title_tag["href"] if title_tag and "href" in title_tag.attrs else "N/A"
-            company = job.find("a", class_="comp-name").get_text(strip=True) if job.find("a",
-                                                                                         class_="comp-name") else "N/A"
-            location = job.find("span", class_="locWdth").get_text(strip=True) if job.find("span",
-                                                                                           class_="locWdth") else "N/A"
-            experience = job.find("span", class_="expwdth").get_text(strip=True) if job.find("span",
-                                                                                             class_="expwdth") else "N/A"
-            salary_from_naukri = job.find("span", class_="sal").get_text(strip=True) if job.find("span",
-                                                                                                 class_="sal") else "N/A"
-            description_from_naukri = job.find("span", class_="job-desc").get_text(strip=True) if job.find("span",
-                                                                                                           class_="job-desc") else "N/A"
-            post_date = job.find("span", class_="job-post-day").get_text(strip=True) if job.find("span",
-                                                                                                 class_="job-post-day") else "N/A"
+            company = job.find("a", class_="comp-name").get_text(strip=True) if job.find("a", class_="comp-name") else "N/A"
+            location = job.find("span", class_="locWdth").get_text(strip=True) if job.find("span", class_="locWdth") else "N/A"
+            experience = job.find("span", class_="expwdth").get_text(strip=True) if job.find("span", class_="expwdth") else "N/A"
+            salary_from_naukri = job.find("span", class_="sal").get_text(strip=True) if job.find("span", class_="sal") else "N/A"
+            description_from_naukri = job.find("span", class_="job-desc").get_text(strip=True) if job.find("span", class_="job-desc") else "N/A"
+            post_date = job.find("span", class_="job-post-day").get_text(strip=True) if job.find("span", class_="job-post-day") else "N/A"
             rating_tag = job.find("a", class_="rating")
-            rating = rating_tag.find("span", class_="main-2").get_text(strip=True) if rating_tag and rating_tag.find(
-                "span", class_="main-2") else "N/A"
+            rating = rating_tag.find("span", class_="main-2").get_text(strip=True) if rating_tag and rating_tag.find("span", class_="main-2") else "N/A"
             reviews_tag = job.find("a", class_="review ver-line")
             reviews_from_naukri = reviews_tag.get_text(strip=True) if reviews_tag else "N/A"
 
             jobs.append({
-                "job_id": job_id,
+                "id": id,
                 "title": title,
                 "company": company,
                 "location": location,
@@ -170,8 +168,8 @@ def scrape_full_job_description(url):
 
         if "indeed.com" in url:
             # Indeed job details extraction
-            job_id_tag = soup.find("meta", {"property": "indeed:jobKey"})
-            job_id = job_id_tag["content"] if job_id_tag else "N/A"
+            id_tag = soup.find("meta", {"property": "indeed:jobKey"})
+            id = id_tag["content"] if id_tag else "N/A"
 
             title_tag = soup.find("h1", class_="jobsearch-JobInfoHeader-title")
             title = title_tag.get_text(strip=True) if title_tag else "N/A"
@@ -206,7 +204,7 @@ def scrape_full_job_description(url):
                 description = "N/A"
 
             job_details = {
-                "job_id": job_id,
+                "id": id,
                 "title": title,
                 "company": company,
                 "location": location,
@@ -263,7 +261,7 @@ def scrape_full_job_description(url):
             formatted_text = f"{description}\n\nKey Skills:\n{key_skills}"
 
             job_details = {
-                "job_id": "N/A",
+                "id": "N/A",
                 "title": title,
                 "company": company,
                 "location": location,
@@ -298,6 +296,7 @@ def show_jobs():
     try:
         job_title = request.args.get('job_title')
         jobs = fetch_jobs(job_title, "home")
+        print(f"returned number of jobs: {len(jobs)}")
         return jsonify(jobs)
     except Exception as e:
         global driver
@@ -305,6 +304,7 @@ def show_jobs():
         driver = create_webdriver()
         job_title = request.args.get('job_title')
         jobs = fetch_jobs(job_title)
+        print(f"returned number of jobs: {len(jobs)}")
         return jsonify(jobs)
     finally:
         if driver is not None:
@@ -317,6 +317,7 @@ def search_jobs():
         job_title = request.args.get('job_title')
         print(job_title)
         jobs = fetch_jobs(job_title, "search bar")
+        print(f"returned number of jobs: {len(jobs)}")
         return jsonify(jobs)
     except Exception as e:
         global driver
@@ -324,6 +325,7 @@ def search_jobs():
         driver = create_webdriver()
         job_title = request.args.get('job_title')
         jobs = fetch_jobs(job_title)
+        print(f"returned number of jobs: {len(jobs)}")
         return jsonify(jobs)
     finally:
         if driver is not None:
