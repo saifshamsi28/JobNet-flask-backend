@@ -46,6 +46,7 @@ def create_webdriver():
 
     return driver
 
+
 driver = create_webdriver()
 
 app = Flask(__name__)
@@ -290,7 +291,6 @@ def scrape_full_job_description(url):
             driver.quit()
 
 
-
 @app.route('/home', methods=['GET'])
 def show_jobs():
     try:
@@ -355,11 +355,5 @@ def get_job_description():
             driver.quit()
 
 
-
-        # job_url = "https://www.naukri.com/job-listings-java-developer-zensar-technologies-kolkata-mumbai-new-delhi-hyderabad-pune-chennai-bengaluru-1-to-4-years-200125502839"
-# job_details = scrape_full_job_description(job_url)
-# print(job_details)
-
-# print(fetch_jobs("android developer", "Search bar"))
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
