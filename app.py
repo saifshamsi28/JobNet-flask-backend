@@ -72,98 +72,108 @@ def fetch_jobs(job_title, source="home"):
 
 
 def extract_jobs_from_page(job_title, site='indeed', page=1):
-    base_url = ""
-    if site == 'indeed':
-        base_url = f"https://in.indeed.com/jobs?q={job_title}&start={(page - 1) * 3}"
-    elif site == 'naukri':
-        base_url = f"https://www.naukri.com/{job_title}-jobs-{page}"
+    local_driver = None
+    try:
+        base_url = ""
+        if site == 'indeed':
+            base_url = f"https://in.indeed.com/jobs?q={job_title}&start={(page - 1) * 3}"
+        elif site == 'naukri':
+            base_url = f"https://www.naukri.com/{job_title}-jobs-{page}"
 
-    print(f"Fetching from {site} - Page {page}: {base_url}")
-    driver.get(base_url)
-    time.sleep(3)
-    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    time.sleep(3)
+        print(f"Fetching from {site} - Page {page}: {base_url}")
+        local_driver = create_webdriver()
+        local_driver.get(base_url)
+        time.sleep(3)
+        local_driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(3)
 
-    soup = BeautifulSoup(driver.page_source, "html.parser")
+        soup = BeautifulSoup(local_driver.page_source, "html.parser")
 
-    if site == 'indeed':
-        job_listings = soup.find_all("div", class_="job_seen_beacon")
+        if site == 'indeed':
+            job_listings = soup.find_all("div", class_="job_seen_beacon")
 
-        for job in job_listings:
-            id = job.find("a", class_="jcs-JobTitle")["data-jk"] if job.find("a", class_="jcs-JobTitle") else "N/A"
-            title_tag = job.find("h2", class_="jobTitle")
-            title = title_tag.get_text(strip=True) if title_tag else "N/A"
-            follow_link_from_indeed = title_tag.find("a")["href"] if title_tag and title_tag.find("a") else "N/A"
-            company = job.find("span", {"data-testid": "company-name"}).get_text(strip=True) if job.find("span", {
-                "data-testid": "company-name"}) else "N/A"
-            location = job.find("div", {"data-testid": "text-location"}).get_text(strip=True) if job.find("div", {
-                "data-testid": "text-location"}) else "N/A"
-            post_date = job.find("span", {"data-testid": "myJobsStateDate"}).get_text(strip=True) if job.find("span", {
-                "data-testid": "myJobsStateDate"}) else "N/A"
-            salary = job.find("div", class_="salary-snippet-container").get_text(strip=True) if job.find("div",
-                                                                                                         class_="salary-snippet-container") else "N/A"
-            rating_value = job.find("span", {"aria-hidden": "true"}).get_text(strip=True) if job.find("span", {
-                "aria-hidden": "true"}) else "N/A"
-            description_list = job.find("div", class_="css-156d248 eu4oa1w0")
-            description_from_indeed = description_list.get_text(strip=True) if description_list else "N/A"
+            for job in job_listings:
+                id = job.find("a", class_="jcs-JobTitle")["data-jk"] if job.find("a", class_="jcs-JobTitle") else "N/A"
+                title_tag = job.find("h2", class_="jobTitle")
+                title = title_tag.get_text(strip=True) if title_tag else "N/A"
+                follow_link_from_indeed = title_tag.find("a")["href"] if title_tag and title_tag.find("a") else "N/A"
+                company = job.find("span", {"data-testid": "company-name"}).get_text(strip=True) if job.find("span", {
+                    "data-testid": "company-name"}) else "N/A"
+                location = job.find("div", {"data-testid": "text-location"}).get_text(strip=True) if job.find("div", {
+                    "data-testid": "text-location"}) else "N/A"
+                post_date = job.find("span", {"data-testid": "myJobsStateDate"}).get_text(strip=True) if job.find("span", {
+                    "data-testid": "myJobsStateDate"}) else "N/A"
+                salary = job.find("div", class_="salary-snippet-container").get_text(strip=True) if job.find("div",
+                                                                                                             class_="salary-snippet-container") else "N/A"
+                rating_value = job.find("span", {"aria-hidden": "true"}).get_text(strip=True) if job.find("span", {
+                    "aria-hidden": "true"}) else "N/A"
+                description_list = job.find("div", class_="css-156d248 eu4oa1w0")
+                description_from_indeed = description_list.get_text(strip=True) if description_list else "N/A"
 
-            jobs.append({
-                "id": id,
-                "title": title,
-                "company": company,
-                "location": location,
-                "post_date": post_date.replace("PostedPosted", ""),
-                "salary": salary,
-                "rating": rating_value,
-                "reviews": "reviews",
-                "description": description_from_indeed,
-                "link": f"https://in.indeed.com{follow_link_from_indeed}"
-            })
+                jobs.append({
+                    "id": id,
+                    "title": title,
+                    "company": company,
+                    "location": location,
+                    "post_date": post_date.replace("PostedPosted", ""),
+                    "salary": salary,
+                    "rating": rating_value,
+                    "reviews": "reviews",
+                    "description": description_from_indeed,
+                    "link": f"https://in.indeed.com{follow_link_from_indeed}"
+                })
 
-    elif site == 'naukri':
-        job_listings = soup.find_all("div", class_="srp-jobtuple-wrapper")
+        elif site == 'naukri':
+            job_listings = soup.find_all("div", class_="srp-jobtuple-wrapper")
 
-        for job in job_listings:
-            # Extract job ID from the URL if not found directly in attributes
-            follow_link_from_naukri = job.find("a", class_="title")["href"] if job.find("a", class_="title") else "N/A"
-            id = job.get("data-job-id", None) or (follow_link_from_naukri.split("-")[-1] if follow_link_from_naukri != "N/A" else "N/A")
+            for job in job_listings:
+                # Extract job ID from the URL if not found directly in attributes
+                follow_link_from_naukri = job.find("a", class_="title")["href"] if job.find("a", class_="title") else "N/A"
+                id = job.get("data-job-id", None) or (follow_link_from_naukri.split("-")[-1] if follow_link_from_naukri != "N/A" else "N/A")
 
-            # The rest of the job parsing remains the same
-            title_tag = job.find("a", class_="title")
-            title = title_tag.get_text(strip=True) if title_tag else "N/A"
-            company = job.find("a", class_="comp-name").get_text(strip=True) if job.find("a", class_="comp-name") else "N/A"
-            location = job.find("span", class_="locWdth").get_text(strip=True) if job.find("span", class_="locWdth") else "N/A"
-            experience = job.find("span", class_="expwdth").get_text(strip=True) if job.find("span", class_="expwdth") else "N/A"
-            salary_from_naukri = job.find("span", class_="sal").get_text(strip=True) if job.find("span", class_="sal") else "N/A"
-            description_from_naukri = job.find("span", class_="job-desc").get_text(strip=True) if job.find("span", class_="job-desc") else "N/A"
-            post_date = job.find("span", class_="job-post-day").get_text(strip=True) if job.find("span", class_="job-post-day") else "N/A"
-            rating_tag = job.find("a", class_="rating")
-            rating = rating_tag.find("span", class_="main-2").get_text(strip=True) if rating_tag and rating_tag.find("span", class_="main-2") else "N/A"
-            reviews_tag = job.find("a", class_="review ver-line")
-            reviews_from_naukri = reviews_tag.get_text(strip=True) if reviews_tag else "N/A"
+                # The rest of the job parsing remains the same
+                title_tag = job.find("a", class_="title")
+                title = title_tag.get_text(strip=True) if title_tag else "N/A"
+                company = job.find("a", class_="comp-name").get_text(strip=True) if job.find("a", class_="comp-name") else "N/A"
+                location = job.find("span", class_="locWdth").get_text(strip=True) if job.find("span", class_="locWdth") else "N/A"
+                experience = job.find("span", class_="expwdth").get_text(strip=True) if job.find("span", class_="expwdth") else "N/A"
+                salary_from_naukri = job.find("span", class_="sal").get_text(strip=True) if job.find("span", class_="sal") else "N/A"
+                description_from_naukri = job.find("span", class_="job-desc").get_text(strip=True) if job.find("span", class_="job-desc") else "N/A"
+                post_date = job.find("span", class_="job-post-day").get_text(strip=True) if job.find("span", class_="job-post-day") else "N/A"
+                rating_tag = job.find("a", class_="rating")
+                rating = rating_tag.find("span", class_="main-2").get_text(strip=True) if rating_tag and rating_tag.find("span", class_="main-2") else "N/A"
+                reviews_tag = job.find("a", class_="review ver-line")
+                reviews_from_naukri = reviews_tag.get_text(strip=True) if reviews_tag else "N/A"
 
-            jobs.append({
-                "id": id,
-                "title": title,
-                "company": company,
-                "location": location,
-                "post_date": post_date,
-                "salary": salary_from_naukri,
-                "rating": rating,
-                "reviews": reviews_from_naukri.replace("Reviews", " "),
-                "description": description_from_naukri,
-                "link": follow_link_from_naukri
-            })
+                jobs.append({
+                    "id": id,
+                    "title": title,
+                    "company": company,
+                    "location": location,
+                    "post_date": post_date,
+                    "salary": salary_from_naukri,
+                    "rating": rating,
+                    "reviews": reviews_from_naukri.replace("Reviews", " "),
+                    "description": description_from_naukri,
+                    "link": follow_link_from_naukri
+                })
+    except Exception as e:
+        print(f"Error during scraping: {e}")
+        return {"error": str(e), "job title ": job_title}
+
+    finally:
+        if local_driver:
+            local_driver.quit()
 
 
 # Function to scrape full job description
 def scrape_full_job_description(url):
-    driver = None
+    local_driver = None
     try:
-        driver = create_webdriver()
-        driver.get(url)
+        local_driver = create_webdriver()
+        local_driver.get(url)
         time.sleep(2)  # Allow page to load
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        soup = BeautifulSoup(local_driver.page_source, 'html.parser')
 
         print(f"Fetching full details from: {url}")
 
@@ -275,20 +285,18 @@ def scrape_full_job_description(url):
                 "description": formatted_text,
                 "link": url
             }
-
         else:
             raise ValueError("Unsupported job URL")
-
 
         return job_details
 
     except Exception as e:
-        print(f"Error while accessing WebDriver or scraping: {e}")
-        return None
+        print(f"Error during scraping: {e}")
+        return {"error": str(e), "url": url}
 
     finally:
-        if driver:
-            driver.quit()
+        if local_driver:
+            local_driver.quit()
 
 
 @app.route('/home', methods=['GET'])
@@ -297,15 +305,10 @@ def show_jobs():
         job_title = request.args.get('job_title')
         jobs = fetch_jobs(job_title, "home")
         print(f"returned number of jobs: {len(jobs)}")
-        return jsonify(jobs)
+        return jsonify(jobs), 200
     except Exception as e:
-        global driver
-        driver.quit()
-        driver = create_webdriver()
-        job_title = request.args.get('job_title')
-        jobs = fetch_jobs(job_title)
-        print(f"returned number of jobs: {len(jobs)}")
-        return jsonify(jobs)
+        print(f"Error fetching jobs : {str(e)}")
+        return jsonify({"error": "Failed to fetch job details"}), 500
     finally:
         if driver is not None:
             driver.quit()
@@ -318,15 +321,10 @@ def search_jobs():
         print(job_title)
         jobs = fetch_jobs(job_title, "search bar")
         print(f"returned number of jobs: {len(jobs)}")
-        return jsonify(jobs)
+        return jsonify(jobs), 200
     except Exception as e:
-        global driver
-        driver.quit()
-        driver = create_webdriver()
-        job_title = request.args.get('job_title')
-        jobs = fetch_jobs(job_title)
-        print(f"returned number of jobs: {len(jobs)}")
-        return jsonify(jobs)
+        print(f"Error fetching jobs : {str(e)}")
+        return jsonify({"error": "Failed to fetch job details"}), 500
     finally:
         if driver is not None:
             driver.quit()
@@ -346,9 +344,6 @@ def get_job_description():
             return jsonify({"error": "Failed to fetch job details"}), 500  # Indicate failure to fetch job details
     except Exception as e:
         print(f"Error fetching job description: {str(e)}")
-        global driver
-        driver.quit()
-        driver = create_webdriver()
         return jsonify({"error": "An error occurred while processing the request"}), 500
     finally:
         if driver is not None:
