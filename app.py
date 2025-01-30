@@ -166,7 +166,6 @@ def extract_jobs_from_page(job_title, site='indeed', page=1):
             local_driver.quit()
 
 
-# Function to scrape full job description
 def scrape_full_job_description(url):
     local_driver = None
     try:
