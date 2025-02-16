@@ -1,59 +1,144 @@
-import re
-from flask import Flask, jsonify, request
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from bs4 import BeautifulSoup
-from flask_cors import CORS
 import time
+import random
+import pickle
+import re
+
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
 
 
 def create_webdriver():
     options = Options()
-    # Enable headless mode for non-UI environments
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')  # Disable sandbox (required for environments like Render)
-    options.add_argument('--disable-dev-shm-usage')  # Reduce memory usage issues
-    options.add_argument('--disable-blink-features=AutomationControlled')  # Prevent detection of headless browser
-    options.add_argument('--disable-extensions')  # Disable extensions for better compatibility
-    options.add_argument('--disable-gpu')  # Disable GPU rendering for better performance in headless mode
-    options.add_argument('--window-size=1920x1080')  # Set a standard screen size
 
-    # Set a custom user agent to mimic a real browser
-    options.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.5481.78 Safari/537.36"
-    )
+    # Optional: Disable headless mode for debugging
+    # options.add_argument('--headless')  # Uncomment for production
 
-    # Disable automation flags to avoid detection as a bot
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-extensions')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--window-size=1920x1080')
+    options.add_argument('--disable-blink-features=AutomationControlled')
+
+    # Random user-agents to avoid detection
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
+    ]
+    random_user_agent = random.choice(user_agents)
+    options.add_argument(f"user-agent={random_user_agent}")
+
+    # Disable automation flags to reduce detection
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
 
-    # Install ChromeDriver and create the WebDriver instance
     driver_path = ChromeDriverManager().install()
     service = Service(driver_path)
     driver = webdriver.Chrome(service=service, options=options)
 
-    # Additional settings to prevent detection
+    # Bypass WebDriver detection
     driver.execute_cdp_cmd(
         "Page.addScriptToEvaluateOnNewDocument",
         {
             "source": """
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
             """
-        },
+        }
     )
-
     return driver
 
+def save_cookies(driver, filename="cookies.pkl"):
+    cookies = driver.get_cookies()
+    with open(filename, "wb") as file:
+        pickle.dump(cookies, file)
+
+def load_cookies(driver, filename="cookies.pkl"):
+    try:
+        with open(filename, "rb") as file:
+            cookies = pickle.load(file)
+            for cookie in cookies:
+                driver.add_cookie(cookie)
+    except FileNotFoundError:
+        print("No saved cookies found.")
+
+# def scrape_full_job_description(url):
+    # driver = create_webdriver()
+    #
+    # try:
+    #     # Step 1: Visit the main page to load initial cookies
+    #     driver.get("https://www.indeed.com/")
+    #     time.sleep(random.uniform(2, 5))  # Random sleep to mimic human behavior
+    #
+    #     # Step 2: Load cookies if available
+    #     load_cookies(driver)
+    #
+    #     # Step 3: Visit the job URL
+    #     driver.get(url)
+    #     time.sleep(random.uniform(5, 10))  # Wait for potential CAPTCHA or page loading
+    #
+    #     # Step 4: Save cookies to persist the session
+    #     save_cookies(driver)
+    #
+    #     # Step 5: Extract job details using BeautifulSoup
+    #     WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+    #     soup = BeautifulSoup(driver.page_source, 'html.parser')
+    #
+    #     # Extract job details
+    #     id_tag = soup.find("meta", {"property": "indeed:jobKey"})
+    #     id = id_tag["content"] if id_tag else "N/A"
+    #
+    #     title_tag = soup.find("h1", class_="jobsearch-JobInfoHeader-title")
+    #     title = title_tag.get_text(strip=True) if title_tag else "N/A"
+    #
+    #     company_tag = soup.find("div", {"data-company-name": "true"})
+    #     company = company_tag.get_text(strip=True) if company_tag else "N/A"
+    #
+    #     location_tag = soup.find("div", {"data-testid": "inlineHeader-companyLocation"})
+    #     location = location_tag.get_text(strip=True) if location_tag else "N/A"
+    #
+    #     post_date_tag = soup.find("span", class_="jobsearch-HiringInsights-entry--bullet")
+    #     post_date = post_date_tag.get_text(strip=True) if post_date_tag else "N/A"
+    #
+    #     salary_tag = soup.find("div", {"data-testid": "jobsearch-JobInfoHeader-salary"})
+    #     salary = salary_tag.get_text(strip=True) if salary_tag else "N/A"
+    #
+    #     rating_tag = soup.find("div", class_="css-1unnuiz e37uo190")
+    #     rating = rating_tag.get_text(strip=True) if rating_tag else "N/A"
+    #
+    #     description_tag = soup.find("div", class_=re.compile(r"jobsearch-JobComponent-description"))
+    #     description = str(description_tag) if description_tag else "N/A"
+    #
+    #     job_details = {
+    #         "id": id,
+    #         "title": title,
+    #         "company": company,
+    #         "location": location,
+    #         "post_date": post_date,
+    #         "salary": salary,
+    #         "rating": rating,
+    #         "description": description,
+    #         "link": url
+    #     }
+    #
+    #     print(job_details)
+    #     return job_details
+    #
+    # finally:
+    #     driver.quit()
 
 driver = create_webdriver()
 
-app = Flask(__name__)
-CORS(app)
-
 jobs = []
-
 
 def fetch_jobs(job_title, source="home"):
     global jobs
@@ -78,7 +163,8 @@ def extract_jobs_from_page(job_title, site='indeed', page=1):
         if site == 'indeed':
             base_url = f"https://in.indeed.com/jobs?q={job_title}&start={(page - 1) * 3}"
         elif site == 'naukri':
-            base_url = f"https://www.naukri.com/{job_title}-jobs-{page}"
+            job_title_encoded = job_title.replace(" ", "%20")  # Encode spaces properly
+            base_url = f"https://www.naukri.com/{job_title_encoded}-jobs-in-india?k={job_title_encoded}&l=india&page={page}"
 
         print(f"Fetching from {site} - Page {page}: {base_url}")
         local_driver = create_webdriver()
@@ -120,6 +206,7 @@ def extract_jobs_from_page(job_title, site='indeed', page=1):
                     "rating": rating_value,
                     "reviews": "reviews",
                     "description": description_from_indeed,
+                    "full_description": None,
                     "link": f"https://in.indeed.com{follow_link_from_indeed}"
                 })
 
@@ -155,6 +242,7 @@ def extract_jobs_from_page(job_title, site='indeed', page=1):
                     "rating": rating,
                     "reviews": reviews_from_naukri.replace("Reviews", " "),
                     "description": description_from_naukri,
+                    "full_description": None,
                     "link": follow_link_from_naukri
                 })
     except Exception as e:
@@ -167,135 +255,152 @@ def extract_jobs_from_page(job_title, site='indeed', page=1):
 
 
 def scrape_full_job_description(url):
-    local_driver = None
-    try:
-        local_driver = create_webdriver()
-        local_driver.get(url)
-        time.sleep(2)  # Allow page to load
-        soup = BeautifulSoup(local_driver.page_source, 'html.parser')
+        driver = create_webdriver()
+        try:
+            # Step 1: Visit the main page to load initial cookies
+            driver.get("https://in.indeed.com")
 
-        print(f"Fetching full details from: {url}")
+            # Only set cookies for the correct domain
+            # for cookie in cook:
+            #     driver.add_cookie({
+            #         'name': cookie['name'],
+            #         'value': cookie['value'],
+            #         'domain': 'in.indeed.com'  # Make sure the domain matches
+            #     })
 
-        if "indeed.com" in url:
-            # Indeed job details extraction
-            id_tag = soup.find("meta", {"property": "indeed:jobKey"})
-            id = id_tag["content"] if id_tag else "N/A"
+            time.sleep(random.uniform(6, 10))  # Random sleep to mimic human behavior
 
-            title_tag = soup.find("h1", class_="jobsearch-JobInfoHeader-title")
-            title = title_tag.get_text(strip=True) if title_tag else "N/A"
+            # Step 2: Load cookies if available
+            load_cookies(driver)
 
-            company_tag = soup.find("div", {"data-company-name": "true"})
-            company = company_tag.get_text(strip=True) if company_tag else "N/A"
+            # Step 3: Visit the job URL
+            driver.get(url)
+            time.sleep(random.uniform(5, 10))  # Wait for potential CAPTCHA or page loading
 
-            location_tag = soup.find("div", {"data-testid": "inlineHeader-companyLocation"})
-            location = location_tag.get_text(strip=True) if location_tag else "N/A"
+            # Step 4: Save cookies to persist the session
+            save_cookies(driver)
 
-            post_date_tag = soup.find("span", class_="jobsearch-HiringInsights-entry--bullet")
-            post_date = post_date_tag.get_text(strip=True) if post_date_tag else "N/A"
+            # Step 5: Extract job details using BeautifulSoup
+            WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            print(f"sout text: {soup.text}")
+            if "indeed.com" in url:
+                # Extract job details
+                id_tag = soup.find("meta", {"property": "indeed:jobKey"})
+                id = id_tag["content"] if id_tag else "N/A"
 
-            salary_tag = soup.find("div", {"data-testid": "jobsearch-OtherJobDetailsContainer"})
-            salary = salary_tag.find("span", class_="css-19j1a75 eu4oa1w0").get_text(strip=True) if salary_tag else "N/A"
+                title_tag = soup.find("h1", class_="jobsearch-JobInfoHeader-title")
+                title = title_tag.get_text(strip=True) if title_tag else "N/A"
 
-            rating_tag = soup.find("div", class_="css-1unnuiz e37uo190")
-            rating = rating_tag.get_text(strip=True) if rating_tag else "N/A"
+                company_tag = soup.find("div", {"data-company-name": "true"})
+                company = company_tag.get_text(strip=True) if company_tag else "N/A"
 
-            description_tag = soup.find("div", class_="jobsearch-JobComponent-description")
-            if description_tag:
-                job_description = description_tag.get_text(separator="\n").strip()
-                formatted_description = []
-                for line in job_description.split('\n'):
-                    line = line.strip()
-                    if ":" in line and len(line) < 25:
-                        formatted_description.append("[HEADING]" + line)
-                    elif line:
-                        formatted_description.append("[BULLET]" + line)
-                description = "\n".join(formatted_description)
+                location_tag = soup.find("div", {"data-testid": "inlineHeader-companyLocation"})
+                location = location_tag.get_text(strip=True) if location_tag else "N/A"
+
+                post_date_tag = soup.find("span", class_="jobsearch-HiringInsights-entry--bullet")
+                post_date = post_date_tag.get_text(strip=True) if post_date_tag else "N/A"
+
+                salary_tag = soup.find("div", {"data-testid": "jobsearch-JobInfoHeader-salary"})
+                salary = salary_tag.get_text(strip=True) if salary_tag else "N/A"
+
+                rating_tag = soup.find("div", class_="css-1unnuiz e37uo190")
+                rating = rating_tag.get_text(strip=True) if rating_tag else "N/A"
+
+                description_tag = soup.find("div", class_=re.compile(r"jobsearch-JobComponent-description"))
+                description = str(description_tag) if description_tag else "N/A"
+
+                job_details = {
+                    "id": "N/A",
+                    "title": title,
+                    "company": company,
+                    "location": location,
+                    "post_date": post_date,
+                    "salary": salary,
+                    "rating": rating,
+                    "reviews": "",
+                    "openings": "openings",
+                    "applicants": "applicants",
+                    "description": description,
+                    "full_description": None,
+                    "link": url
+                }
+
+                print(job_details)
+                return job_details
+
+            elif "naukri.com" in url:
+                # Naukri job details extraction
+                title_tag = soup.find("h1", class_="styles_jd-header-title__rZwM1")
+                title = title_tag.text.strip() if title_tag else "N/A"
+
+                company_tag = soup.find("div", class_="styles_jd-header-comp-name__MvqAI").find("a")
+                company = company_tag.text.strip() if company_tag else "N/A"
+
+                rating_tag = soup.find("span", class_="styles_amb-rating__4UyFL")
+                rating = rating_tag.text.strip() if rating_tag else "N/A"
+                reviews_tag = soup.find("span", class_="styles_amb-reviews__0J1e3")
+                reviews = reviews_tag.text.strip() if reviews_tag else "N/A"
+
+                experience_tag = soup.find("div", class_="styles_jhc__exp__k_giM")
+                experience = experience_tag.text.strip() if experience_tag else "N/A"
+
+                salary_tag = soup.find("div", class_="styles_jhc__salary__jdfEC")
+                salary = salary_tag.text.strip() if salary_tag else "N/A"
+
+                location_tag = soup.find("span", class_="styles_jhc__location__W_pVs").find("a")
+                location = location_tag.text.strip() if location_tag else "N/A"
+
+                stats_container = soup.find("div", class_="styles_jhc__jd-stats__KrId0")
+                posted_date, openings, applicants = "N/A", "N/A", "N/A"
+                if stats_container:
+                    stats_spans = stats_container.find_all("span", class_="styles_jhc__stat__PgY67")
+                    for stat in stats_spans:
+                        label = stat.find("label").text.strip() if stat.find("label") else ""
+                        if label == "Posted:":
+                            posted_date = stat.find_next("span").text.strip()
+                        elif label == "Openings:":
+                            openings = stat.find_next("span").text.strip()
+                        elif label == "Applicants:":
+                            applicants = stat.find_next("span").text.strip()
+
+                description_tag = soup.find("div", class_="styles_JDC__dang-inner-html__h0K4t")
+                description = description_tag.get_text(separator="\n").strip() if description_tag else "N/A"
+                # print(description)
+                # description = re.sub(r'\n +', '\n', description)
+                #
+                # skills_tags = soup.find_all("a", class_="styles_chip__7YCfG")
+                # key_skills = "\n".join([f"• {skill.text.strip()}" for skill in skills_tags])
+                #
+                # formatted_text = f"{description}\n\nKey Skills:\n{key_skills}"
+
+                job_details = {
+                    "id": "N/A",
+                    "title": title,
+                    "company": company,
+                    "location": location,
+                    "post_date": posted_date,
+                    "salary": salary,
+                    "rating": rating,
+                    "reviews": reviews,
+                    "openings": openings,
+                    "applicants": applicants,
+                    "description": description,
+                    "full_description": None,
+                    "link": url
+                }
             else:
-                description = "N/A"
+                raise ValueError("Unsupported job URL")
 
-            job_details = {
-                "id": id,
-                "title": title,
-                "company": company,
-                "location": location,
-                "post_date": post_date,
-                "salary": salary,
-                "rating": rating,
-                "description": description,
-                "link": url
-            }
+            return job_details
 
-        elif "naukri.com" in url:
-            # Naukri job details extraction
-            title_tag = soup.find("h1", class_="styles_jd-header-title__rZwM1")
-            title = title_tag.text.strip() if title_tag else "N/A"
+        except Exception as e:
+            print(f"Error during scraping: {e}")
+            return {"error": str(e), "url": url}
 
-            company_tag = soup.find("div", class_="styles_jd-header-comp-name__MvqAI").find("a")
-            company = company_tag.text.strip() if company_tag else "N/A"
-
-            rating_tag = soup.find("span", class_="styles_amb-rating__4UyFL")
-            rating = rating_tag.text.strip() if rating_tag else "N/A"
-            reviews_tag = soup.find("span", class_="styles_amb-reviews__0J1e3")
-            reviews = reviews_tag.text.strip() if reviews_tag else "N/A"
-
-            experience_tag = soup.find("div", class_="styles_jhc__exp__k_giM")
-            experience = experience_tag.text.strip() if experience_tag else "N/A"
-
-            salary_tag = soup.find("div", class_="styles_jhc__salary__jdfEC")
-            salary = salary_tag.text.strip() if salary_tag else "N/A"
-
-            location_tag = soup.find("span", class_="styles_jhc__location__W_pVs").find("a")
-            location = location_tag.text.strip() if location_tag else "N/A"
-
-            stats_container = soup.find("div", class_="styles_jhc__jd-stats__KrId0")
-            posted_date, openings, applicants = "N/A", "N/A", "N/A"
-            if stats_container:
-                stats_spans = stats_container.find_all("span", class_="styles_jhc__stat__PgY67")
-                for stat in stats_spans:
-                    label = stat.find("label").text.strip() if stat.find("label") else ""
-                    if label == "Posted:":
-                        posted_date = stat.find_next("span").text.strip()
-                    elif label == "Openings:":
-                        openings = stat.find_next("span").text.strip()
-                    elif label == "Applicants:":
-                        applicants = stat.find_next("span").text.strip()
-
-            description_tag = soup.find("div", class_="styles_JDC__dang-inner-html__h0K4t")
-            description = description_tag.get_text(separator="\n").strip() if description_tag else "N/A"
-            # print(description)
-            description = re.sub(r'\n +', '\n', description)
-
-            skills_tags = soup.find_all("a", class_="styles_chip__7YCfG")
-            key_skills = "\n".join([f"• {skill.text.strip()}" for skill in skills_tags])
-
-            formatted_text = f"{description}\n\nKey Skills:\n{key_skills}"
-
-            job_details = {
-                "id": "N/A",
-                "title": title,
-                "company": company,
-                "location": location,
-                "post_date": posted_date,
-                "salary": salary,
-                "rating": rating,
-                "reviews": reviews,
-                "openings": openings,
-                "applicants": applicants,
-                "description": formatted_text,
-                "link": url
-            }
-        else:
-            raise ValueError("Unsupported job URL")
-
-        return job_details
-
-    except Exception as e:
-        print(f"Error during scraping: {e}")
-        return {"error": str(e), "url": url}
-
-    finally:
-        if local_driver:
-            local_driver.quit()
+        finally:
+            if driver:
+                driver.quit()
 
 
 @app.route('/home', methods=['GET'])
@@ -348,6 +453,8 @@ def get_job_description():
         if driver is not None:
             driver.quit()
 
-
+url="https://in.indeed.com/viewjob?cmp=Hyeongshin-Automotive-Industry&t=Java+Developer&jk=5af65e630dccdc9c&xpse=SoBf67I31HUmb2W3VJ0LbzkdCdPP&xfps=eb45e92e-ff44-4a9d-acc0-9c52c042a0d7&xkcb=SoBD67M327IF5FAx4r0IbzkdCdPP&vjs=3"
+print(scrape_full_job_description(url))
+# print(fetch_jobs("android developer","home"))
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
