@@ -22,9 +22,9 @@ def create_webdriver():
     options = Options()
 
     # Optional: Disable headless mode for debugging
-    # options.add_argument('--headless')  # Uncomment for production
-
-    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--headless')  # Uncomment for production
+    options.add_argument('--no-sandbox')  # Disable sandbox (required for environments like Render)
+    options.add_argument('--disable-dev-shm-usage')  # Reduce memory usage issues
     options.add_argument('--disable-extensions')
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920x1080')
@@ -258,7 +258,7 @@ def scrape_full_job_description(url):
         driver = create_webdriver()
         try:
             # Step 1: Visit the main page to load initial cookies
-            driver.get("https://in.indeed.com")
+            # driver.get("https://in.indeed.com")
 
             # Only set cookies for the correct domain
             # for cookie in cook:
@@ -268,22 +268,23 @@ def scrape_full_job_description(url):
             #         'domain': 'in.indeed.com'  # Make sure the domain matches
             #     })
 
-            time.sleep(random.uniform(6, 10))  # Random sleep to mimic human behavior
+            # time.sleep(random.uniform(6, 10))  # Random sleep to mimic human behavior
 
             # Step 2: Load cookies if available
-            load_cookies(driver)
+            # load_cookies(driver)
 
             # Step 3: Visit the job URL
             driver.get(url)
-            time.sleep(random.uniform(5, 10))  # Wait for potential CAPTCHA or page loading
+            time.sleep(5)
+            # time.sleep(random.uniform(5, 10))  # Wait for potential CAPTCHA or page loading
 
             # Step 4: Save cookies to persist the session
-            save_cookies(driver)
+            # save_cookies(driver)
 
             # Step 5: Extract job details using BeautifulSoup
-            WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+            # WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
             soup = BeautifulSoup(driver.page_source, 'html.parser')
-            print(f"sout text: {soup.text}")
+            # print(f"sout: {soup}")
             if "indeed.com" in url:
                 # Extract job details
                 id_tag = soup.find("meta", {"property": "indeed:jobKey"})
@@ -364,8 +365,12 @@ def scrape_full_job_description(url):
                         elif label == "Applicants:":
                             applicants = stat.find_next("span").text.strip()
 
-                description_tag = soup.find("div", class_="styles_JDC__dang-inner-html__h0K4t")
-                description = description_tag.get_text(separator="\n").strip() if description_tag else "N/A"
+                # description_tag = soup.find("div", class_="styles_JDC__dang-inner-html__h0K4t")
+                # description = description_tag.get_text(separator="\n").strip() if description_tag else "N/A"
+                description_tag = soup.find("section", class_=re.compile(r"styles_job-desc-container."))
+                description = str(description_tag) if description_tag else "N/A"
+                # print(f"desc tag with html: {description_tag}")
+                print(f"desc with html: {description}")
                 # print(description)
                 # description = re.sub(r'\n +', '\n', description)
                 #
@@ -373,6 +378,7 @@ def scrape_full_job_description(url):
                 # key_skills = "\n".join([f"• {skill.text.strip()}" for skill in skills_tags])
                 #
                 # formatted_text = f"{description}\n\nKey Skills:\n{key_skills}"
+                # print(f"description: {description}")
 
                 job_details = {
                     "id": "N/A",
@@ -386,7 +392,7 @@ def scrape_full_job_description(url):
                     "openings": openings,
                     "applicants": applicants,
                     "description": description,
-                    "full_description": None,
+                    "full_description": description,
                     "link": url
                 }
             else:
@@ -453,8 +459,8 @@ def get_job_description():
         if driver is not None:
             driver.quit()
 
-url="https://in.indeed.com/viewjob?cmp=Hyeongshin-Automotive-Industry&t=Java+Developer&jk=5af65e630dccdc9c&xpse=SoBf67I31HUmb2W3VJ0LbzkdCdPP&xfps=eb45e92e-ff44-4a9d-acc0-9c52c042a0d7&xkcb=SoBD67M327IF5FAx4r0IbzkdCdPP&vjs=3"
-print(scrape_full_job_description(url))
+# url="https://in.indeed.com/viewjob?cmp=Hyeongshin-Automotive-Industry&t=Java+Developer&jk=5af65e630dccdc9c&xpse=SoBf67I31HUmb2W3VJ0LbzkdCdPP&xfps=eb45e92e-ff44-4a9d-acc0-9c52c042a0d7&xkcb=SoBD67M327IF5FAx4r0IbzkdCdPP&vjs=3"
+# print(scrape_full_job_description(url))
 # print(fetch_jobs("android developer","home"))
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
