@@ -4,15 +4,22 @@ import pickle
 import re
 
 from selenium import webdriver
+from selenium.common import NoSuchElementException
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import pdfplumber
+import docx
+import re
+import spacy
+from nltk.corpus import stopwords
+from flask import Flask, request, jsonify
+import os
+from resume_parser import extract_resume_info
 
 app = Flask(__name__)
 CORS(app)
@@ -145,15 +152,117 @@ def fetch_jobs(job_title, source="home"):
     jobs = []
 
     # to decide from how much page jobs will be fetched
-    for page in range(1, 3):
-        # Fetch jobs from Naukri
-        extract_jobs_from_page(job_title, site='naukri', page=page)
+    # for page in range(1, 3):
 
         # Fetch jobs from Indeed if the source is "search bar"
-        if source == "search bar" or source == "home":
-            extract_jobs_from_page(job_title, site='indeed', page=page)
+        # if source == "search bar" or source == "home":
+        #     extract_jobs_from_page(job_title)
+        #     break
+        # else:
+            # Fetch jobs from Naukri
+    extract_jobs_from_page(job_title, site='naukri')
 
     return jobs
+
+
+def extract_jobs_from_home_page():
+    """
+    This function loads the Naukri home page, scrolls to load the popular jobs,
+    and then extracts each job's details (logo, created date, job title, job link,
+    company name, rating, location, and experience) from the 'popular-jobs-container'.
+    """
+    # jobs = []  # local list to store job details
+    # driver = None
+    # print("calling home page method")
+    driver = create_webdriver()
+
+    try:
+        home_url = "https://www.indeed.com"
+        print(f"Fetching details from: {home_url}")
+        driver.get(home_url)
+
+        time.sleep(5)  # Wait for the page to load
+
+        # Scroll multiple times to load dynamic content
+        for _ in range(3):
+            driver.execute_script("window.scrollBy(0, document.body.scrollHeight/3);")
+            time.sleep(3)
+
+        # Click a button if necessary to load jobs (modify selector as needed)
+        try:
+            button = driver.find_element(By.XPATH, "//button[contains(text(),'View All Jobs')]")
+            if button:
+                button.click()
+                time.sleep(5)  # Wait for jobs to load
+        except NoSuchElementException:
+            print("No button found, continuing...")
+
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        print()
+
+        # Find the "popular jobs" section
+        popular_jobs_container = soup.find("div", class_="popular-jobs-container")
+        print(f"Popular jobs container: {popular_jobs_container}")
+
+        if not popular_jobs_container:
+            print("No popular jobs container found on the home page.")
+            return jobs
+
+        # Find all job cards
+        job_cards = popular_jobs_container.find_all("div", class_="swiper-slide popular-jobs-chip")
+        for card in job_cards:
+            logo_url = ""
+            created_date = ""
+
+            # Extract logo
+            logo_container = card.find("div", class_="logo-container")
+            if logo_container:
+                comp_logo_div = logo_container.find("div", class_="comp-logo")
+                if comp_logo_div:
+                    logo_img = comp_logo_div.find("img")
+                    if logo_img:
+                        logo_url = logo_img.get("src", "")
+
+                created_date_tag = logo_container.find("span", class_="created-date")
+                if created_date_tag:
+                    created_date = created_date_tag.get_text(strip=True)
+
+            # Extract Job Title and Link
+            job_title = ""
+            job_link = ""
+            job_title_tag = card.find("a", class_="job-title")
+            if job_title_tag:
+                job_title = job_title_tag.get_text(strip=True)
+                job_link = job_title_tag.get("href", "")
+                if job_link.startswith("/"):
+                    job_link = "https://www.naukri.com" + job_link
+
+            # Extract Company Name
+            company_name = card.find("a", class_="comp-name").get_text(strip=True) if card.find("a", class_="comp-name") else "N/A"
+
+            # Extract Job Location
+            location_tag = card.find("span", class_="locWdth")
+            location = location_tag.get_text(strip=True) if location_tag else "N/A"
+
+            jobs.append({
+                "title": job_title,
+                "company": company_name,
+                "location": location,
+                "logo": logo_url,
+                "created_date": created_date,
+                "link": job_link
+            })
+
+            print(jobs)
+        return jobs
+
+    except Exception as e:
+        print(f"Error fetching popular jobs: {str(e)}")
+        return []
+
+    finally:
+        driver.quit()
+
 
 
 def extract_jobs_from_page(job_title, site='indeed', page=1):
@@ -459,8 +568,39 @@ def get_job_description():
         if driver is not None:
             driver.quit()
 
+#resume handling feature
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+@app.route('/parse-resume', methods=['POST'])
+def parse_resume():
+    try:
+        if 'resume' not in request.files:
+            return jsonify({'error': 'No resume file uploaded'}), 400
+
+        resume_file = request.files['resume']
+        print(f"Received resume file: {resume_file.filename}")
+
+        filename = resume_file.filename.lower()
+
+        # Save temporarily for parsing
+        temp_path = os.path.join(UPLOAD_FOLDER, filename)
+        resume_file.save(temp_path)
+
+        extracted_info = extract_resume_info(temp_path)
+
+        del resume_file
+
+        return jsonify(extracted_info), 200
+
+    except Exception as e:
+        print(f"Error parsing resume: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 # url="https://in.indeed.com/viewjob?cmp=Hyeongshin-Automotive-Industry&t=Java+Developer&jk=5af65e630dccdc9c&xpse=SoBf67I31HUmb2W3VJ0LbzkdCdPP&xfps=eb45e92e-ff44-4a9d-acc0-9c52c042a0d7&xkcb=SoBD67M327IF5FAx4r0IbzkdCdPP&vjs=3"
 # print(scrape_full_job_description(url))
+
+# print(extract_jobs_from_home_page())
 # print(fetch_jobs("android developer","home"))
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
