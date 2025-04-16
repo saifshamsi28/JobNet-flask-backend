@@ -37,3 +37,8 @@ wsproto==1.2.0
 gunicorn==22.0.0
 webdriver-manager==4.0.2
 
+
+pdfplumber~=0.11.6
+spacy~=3.8.5
+nltk~=3.9.1
+fitz~=0.0.1.dev2

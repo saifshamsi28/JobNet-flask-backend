@@ -589,7 +589,8 @@ def parse_resume():
 
         extracted_info = extract_resume_info(temp_path)
 
-        del resume_file
+        # Cleanup
+        os.remove(temp_path)
 
         return jsonify(extracted_info), 200
 
