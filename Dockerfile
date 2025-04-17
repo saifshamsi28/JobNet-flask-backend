@@ -27,6 +27,9 @@ ENV PYTHONUNBUFFERED=1
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+# ✅ Add this line to download the spaCy model
+RUN python -m spacy download en_core_web_sm
+
 # Copy application files and set working directory
 COPY . /app
 WORKDIR /app
