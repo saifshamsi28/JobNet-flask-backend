@@ -1,24 +1,19 @@
-import time
-import random
+import os
 import pickle
+import random
 import re
+import time
 
-from selenium import webdriver
-from selenium.common import NoSuchElementException
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import pdfplumber
-import docx
-import re
-import spacy
-from nltk.corpus import stopwords
-from flask import Flask, request, jsonify
-import os
+from selenium import webdriver
+from selenium.common import NoSuchElementException
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from webdriver_manager.chrome import ChromeDriverManager
+
 from resume_parser import extract_resume_info
 
 app = Flask(__name__)

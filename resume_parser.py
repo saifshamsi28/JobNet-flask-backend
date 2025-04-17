@@ -6,6 +6,7 @@ from nltk.corpus import stopwords
 nlp = spacy.load("en_core_web_sm")
 STOPWORDS = set(stopwords.words("english"))
 
+
 def extract_text_and_links_from_pdf(file_path):
     text = ""
     urls = set()
