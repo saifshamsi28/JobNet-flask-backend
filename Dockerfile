@@ -30,6 +30,9 @@ RUN pip install -r requirements.txt
 # ✅ Add this line to download the spaCy model
 RUN python -m spacy download en_core_web_sm
 
+# ✅ Download NLTK stopwords
+RUN python -m nltk.downloader stopwords
+
 # Copy application files and set working directory
 COPY . /app
 WORKDIR /app
