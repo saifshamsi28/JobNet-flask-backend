@@ -431,7 +431,7 @@ def scrape_full_job_description(url):
                     "link": url
                 }
 
-                print(job_details)
+                # print(job_details)
                 return job_details
 
             elif "naukri.com" in url:
@@ -474,7 +474,7 @@ def scrape_full_job_description(url):
                 description_tag = soup.find("section", class_=re.compile(r"styles_job-desc-container."))
                 description = str(description_tag) if description_tag else "N/A"
                 # print(f"desc tag with html: {description_tag}")
-                print(f"desc with html: {description}")
+                # print(f"desc with html: {description}")
                 # print(description)
                 # description = re.sub(r'\n +', '\n', description)
                 #
@@ -553,6 +553,7 @@ def get_job_description():
 
         job = scrape_full_job_description(job_url)
         if job:
+            print("job description fetched successfully")
             return jsonify(job), 200  # Return success with job details
         else:
             return jsonify({"error": "Failed to fetch job details"}), 500  # Indicate failure to fetch job details
@@ -566,6 +567,7 @@ def get_job_description():
 #resume handling feature
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
 @app.route('/parse-resume', methods=['POST'])
 def parse_resume():
